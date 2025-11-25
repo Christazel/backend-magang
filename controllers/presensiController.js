@@ -1,16 +1,12 @@
 // ======= controllers/presensiController.js =======
 import Presensi from "../models/presensiModel.js";
-import moment from "moment-timezone";
-
-const APP_TIMEZONE = process.env.APP_TIMEZONE || "Asia/Jakarta";
-// Set default timezone untuk semua moment()
-moment.tz.setDefault(APP_TIMEZONE);
+import moment from "moment";
 
 // ✅ Absen Masuk
 export const absenMasuk = async (req, res) => {
   try {
     const userId = req.user.id;
-    const tanggal = moment().format("YYYY-MM-DD"); // sekarang sudah Asia/Jakarta
+    const tanggal = moment().format("YYYY-MM-DD");
 
     let presensi = await Presensi.findOne({ user: userId, tanggal });
     if (presensi && presensi.jamMasuk) {
@@ -21,7 +17,7 @@ export const absenMasuk = async (req, res) => {
       presensi = new Presensi({ user: userId, tanggal });
     }
 
-    presensi.jamMasuk = moment().format("HH:mm:ss"); // juga Asia/Jakarta
+    presensi.jamMasuk = moment().format("HH:mm:ss");
     presensi.lokasiMasuk = `${req.body.latitude},${req.body.longitude}`;
     await presensi.save();
 
