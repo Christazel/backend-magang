@@ -1,12 +1,14 @@
 // ======= controllers/presensiController.js =======
 import Presensi from "../models/presensiModel.js";
-import moment from "moment";
+import moment from "moment-timezone";
+
+const APP_TIMEZONE = process.env.APP_TIMEZONE || "Asia/Jakarta";
 
 // ✅ Absen Masuk
 export const absenMasuk = async (req, res) => {
   try {
     const userId = req.user.id;
-    const tanggal = moment().format("YYYY-MM-DD");
+    const tanggal = moment().tz(APP_TIMEZONE).format("YYYY-MM-DD");
 
     let presensi = await Presensi.findOne({ user: userId, tanggal });
     if (presensi && presensi.jamMasuk) {
@@ -17,7 +19,7 @@ export const absenMasuk = async (req, res) => {
       presensi = new Presensi({ user: userId, tanggal });
     }
 
-    presensi.jamMasuk = moment().format("HH:mm:ss");
+    presensi.jamMasuk = moment().tz(APP_TIMEZONE).format("HH:mm:ss");
     presensi.lokasiMasuk = `${req.body.latitude},${req.body.longitude}`;
     await presensi.save();
 
@@ -31,7 +33,7 @@ export const absenMasuk = async (req, res) => {
 export const absenKeluar = async (req, res) => {
   try {
     const userId = req.user.id;
-    const tanggal = moment().format("YYYY-MM-DD");
+    const tanggal = moment().tz(APP_TIMEZONE).format("YYYY-MM-DD");
 
     let presensi = await Presensi.findOne({ user: userId, tanggal });
     if (!presensi || !presensi.jamMasuk) {
@@ -41,7 +43,7 @@ export const absenKeluar = async (req, res) => {
       return res.status(400).json({ msg: "Sudah absen keluar hari ini" });
     }
 
-    presensi.jamKeluar = moment().format("HH:mm:ss");
+    presensi.jamKeluar = moment().tz(APP_TIMEZONE).format("HH:mm:ss");
     presensi.lokasiKeluar = `${req.body.latitude},${req.body.longitude}`;
     await presensi.save();
 
@@ -55,7 +57,7 @@ export const absenKeluar = async (req, res) => {
 export const getPresensiHariIni = async (req, res) => {
   try {
     const userId = req.user.id;
-    const tanggal = moment().format("YYYY-MM-DD");
+    const tanggal = moment().tz(APP_TIMEZONE).format("YYYY-MM-DD");
 
     const presensi = await Presensi.findOne({ user: userId, tanggal });
     res.json(presensi || {});
@@ -85,6 +87,8 @@ export const getAllPresensi = async (req, res) => {
     const filteredData = data.filter((item) => item.user !== null);
     res.status(200).json(filteredData);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal ambil semua data", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Gagal ambil semua data", error: error.message });
   }
 };
