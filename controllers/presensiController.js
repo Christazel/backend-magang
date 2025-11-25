@@ -1,6 +1,10 @@
 // ======= controllers/presensiController.js =======
 import Presensi from "../models/presensiModel.js";
-import moment from "moment";
+import moment from "moment-timezone";
+
+const APP_TIMEZONE = process.env.APP_TIMEZONE || "Asia/Jakarta";
+// bikin semua moment() default ke Asia/Jakarta
+moment.tz.setDefault(APP_TIMEZONE);
 
 // ✅ Absen Masuk
 export const absenMasuk = async (req, res) => {
