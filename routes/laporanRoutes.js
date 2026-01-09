@@ -11,6 +11,11 @@ import {
   updateDeskripsiLaporan,
   deleteLaporan,
   uploadLaporanBase64,
+
+  // ✅ baru
+  adminReviewLaporan,
+  updateLaporanFile,
+  updateLaporanBase64ById,
 } from "../controllers/laporanController.js";
 
 const router = express.Router();
@@ -18,7 +23,7 @@ const router = express.Router();
 // ✅ Multer MEMORY (aman untuk Vercel serverless)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 4 * 1024 * 1024 }, // 4MB biar aman dari limit 4.5MB
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4MB
 });
 
 // Upload laporan oleh peserta (multipart)
@@ -33,8 +38,17 @@ router.get("/", authMiddleware, getLaporanPeserta);
 // Get semua laporan (admin)
 router.get("/admin", authMiddleware, getLaporanList);
 
-// Update deskripsi
+// ✅ ADMIN: nilai laporan (sesuai/revisi + catatan)
+router.put("/admin/:id/review", authMiddleware, adminReviewLaporan);
+
+// Update deskripsi (peserta)
 router.put("/:id", authMiddleware, updateDeskripsiLaporan);
+
+// ✅ PESERTA: kirim ulang laporan (replace file) multipart
+router.put("/:id/file", authMiddleware, upload.single("file"), updateLaporanFile);
+
+// ✅ PESERTA: kirim ulang laporan (replace file) base64
+router.put("/:id/base64", authMiddleware, updateLaporanBase64ById);
 
 // Hapus laporan
 router.delete("/:id", authMiddleware, deleteLaporan);

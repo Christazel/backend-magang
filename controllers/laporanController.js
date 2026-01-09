@@ -40,6 +40,13 @@ export const uploadLaporan = async (req, res) => {
         mimeType: req.file.mimetype,
         gfsFilename,
         size: file?.length || req.file.size || 0,
+
+        // ✅ penilaian default
+        status: "pending",
+        reviewed: false,
+        adminCatatan: "",
+        reviewedBy: null,
+        reviewedAt: null,
       });
 
       return res.status(201).json({ msg: "Laporan berhasil diupload", laporan });
@@ -52,7 +59,10 @@ export const uploadLaporan = async (req, res) => {
 // ✅ Ambil laporan milik peserta
 export const getLaporanPeserta = async (req, res) => {
   try {
-    const laporan = await Laporan.find({ user: req.user.id }).sort({ createdAt: -1 });
+    const laporan = await Laporan.find({ user: req.user.id })
+      .populate("reviewedBy", "name email")
+      .sort({ createdAt: -1 });
+
     res.status(200).json(laporan);
   } catch (error) {
     res.status(500).json({ msg: "Gagal mengambil laporan", error: error.message });
@@ -66,6 +76,7 @@ export const getLaporanList = async (req, res) => {
 
     const laporanList = await Laporan.find()
       .populate("user", "name email")
+      .populate("reviewedBy", "name email")
       .sort({ createdAt: -1 });
 
     res.status(200).json(laporanList);
@@ -74,7 +85,7 @@ export const getLaporanList = async (req, res) => {
   }
 };
 
-// ✅ Update deskripsi laporan
+// ✅ Update deskripsi laporan (peserta)
 export const updateDeskripsiLaporan = async (req, res) => {
   try {
     const { deskripsi } = req.body;
@@ -139,11 +150,165 @@ export const uploadLaporanBase64 = async (req, res) => {
         mimeType: mimeType || "application/octet-stream",
         gfsFilename,
         size: file?.length || buffer.length || 0,
+
+        // ✅ penilaian default
+        status: "pending",
+        reviewed: false,
+        adminCatatan: "",
+        reviewedBy: null,
+        reviewedAt: null,
       });
 
       return res.status(201).json({ msg: "Laporan berhasil diupload (Web)", laporan });
     });
   } catch (error) {
     res.status(500).json({ msg: "Gagal upload laporan base64", error: error.message });
+  }
+};
+
+// =========================
+// ✅ BARU: ADMIN REVIEW
+// =========================
+export const adminReviewLaporan = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") return res.status(403).json({ msg: "Akses ditolak" });
+
+    const { status, adminCatatan } = req.body;
+
+    if (!["sesuai", "revisi", "pending"].includes(status)) {
+      return res.status(400).json({ msg: "Status tidak valid. Gunakan: pending | sesuai | revisi" });
+    }
+
+    const laporan = await Laporan.findById(req.params.id);
+    if (!laporan) return res.status(404).json({ msg: "Laporan tidak ditemukan" });
+
+    laporan.status = status;
+    laporan.adminCatatan = (adminCatatan ?? "").toString();
+    laporan.reviewed = status !== "pending";
+    laporan.reviewedBy = req.user.id;
+    laporan.reviewedAt = new Date();
+
+    await laporan.save();
+
+    const populated = await Laporan.findById(laporan._id)
+      .populate("user", "name email")
+      .populate("reviewedBy", "name email");
+
+    return res.status(200).json({ msg: "Penilaian laporan berhasil disimpan", laporan: populated });
+  } catch (error) {
+    return res.status(500).json({ msg: "Gagal menilai laporan", error: error.message });
+  }
+};
+
+// =========================
+// ✅ BARU: PESERTA KIRIM ULANG (REPLACE FILE) - MULTIPART
+// =========================
+export const updateLaporanFile = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ msg: "File tidak ditemukan." });
+
+    const bucket = getBucket();
+
+    const laporan = await Laporan.findOne({ _id: req.params.id, user: req.user.id });
+    if (!laporan) return res.status(404).json({ msg: "Laporan tidak ditemukan" });
+
+    const oldFileId = laporan.fileId;
+
+    const gfsFilename = `${Date.now()}-${req.file.originalname}`;
+    const uploadStream = bucket.openUploadStream(gfsFilename, {
+      contentType: req.file.mimetype,
+      metadata: { userId: req.user.id, originalname: req.file.originalname },
+    });
+
+    Readable.from(req.file.buffer).pipe(uploadStream);
+
+    uploadStream.on("error", (e) => {
+      return res.status(500).json({ msg: "Gagal upload laporan", error: e.message });
+    });
+
+    uploadStream.on("finish", async (file) => {
+      // update laporan ke file baru
+      laporan.fileId = uploadStream.id;
+      laporan.originalName = req.file.originalname;
+      laporan.mimeType = req.file.mimetype;
+      laporan.gfsFilename = gfsFilename;
+      laporan.size = file?.length || req.file.size || 0;
+
+      // ✅ reset penilaian agar admin nilai ulang
+      laporan.status = "pending";
+      laporan.reviewed = false;
+      laporan.adminCatatan = "";
+      laporan.reviewedBy = null;
+      laporan.reviewedAt = null;
+
+      await laporan.save();
+
+      // hapus file lama (biar gridfs gak numpuk)
+      try {
+        await bucket.delete(new mongoose.Types.ObjectId(oldFileId));
+      } catch (_) {
+        // kalau gagal hapus, jangan gagalkan request (opsional)
+      }
+
+      return res.status(200).json({ msg: "Laporan berhasil dikirim ulang. Menunggu penilaian admin.", laporan });
+    });
+  } catch (error) {
+    return res.status(500).json({ msg: "Gagal mengirim ulang laporan", error: error.message });
+  }
+};
+
+// =========================
+// ✅ BARU: PESERTA KIRIM ULANG (REPLACE FILE) - BASE64
+// =========================
+export const updateLaporanBase64ById = async (req, res) => {
+  try {
+    const { filename, base64, mimeType } = req.body;
+    if (!filename || !base64) return res.status(400).json({ msg: "Data base64 tidak lengkap." });
+
+    const bucket = getBucket();
+    const buffer = Buffer.from(base64, "base64");
+
+    const laporan = await Laporan.findOne({ _id: req.params.id, user: req.user.id });
+    if (!laporan) return res.status(404).json({ msg: "Laporan tidak ditemukan" });
+
+    const oldFileId = laporan.fileId;
+
+    const gfsFilename = `${Date.now()}-${filename}`;
+    const uploadStream = bucket.openUploadStream(gfsFilename, {
+      contentType: mimeType || "application/octet-stream",
+      metadata: { userId: req.user.id, originalname: filename },
+    });
+
+    Readable.from(buffer).pipe(uploadStream);
+
+    uploadStream.on("error", (e) => {
+      return res.status(500).json({ msg: "Gagal upload laporan base64", error: e.message });
+    });
+
+    uploadStream.on("finish", async (file) => {
+      laporan.fileId = uploadStream.id;
+      laporan.originalName = filename;
+      laporan.mimeType = mimeType || "application/octet-stream";
+      laporan.gfsFilename = gfsFilename;
+      laporan.size = file?.length || buffer.length || 0;
+
+      // ✅ reset penilaian agar admin nilai ulang
+      laporan.status = "pending";
+      laporan.reviewed = false;
+      laporan.adminCatatan = "";
+      laporan.reviewedBy = null;
+      laporan.reviewedAt = null;
+
+      await laporan.save();
+
+      // hapus file lama
+      try {
+        await bucket.delete(new mongoose.Types.ObjectId(oldFileId));
+      } catch (_) {}
+
+      return res.status(200).json({ msg: "Laporan berhasil dikirim ulang (Web). Menunggu penilaian admin.", laporan });
+    });
+  } catch (error) {
+    return res.status(500).json({ msg: "Gagal mengirim ulang laporan base64", error: error.message });
   }
 };

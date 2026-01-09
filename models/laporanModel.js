@@ -46,6 +46,39 @@ const laporanSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
+    // =========================
+    // ✅ FITUR PENILAIAN ADMIN
+    // =========================
+    status: {
+      type: String,
+      enum: ["pending", "sesuai", "revisi"], // pending=belum dinilai / menunggu, sesuai=OK, revisi=perlu perbaikan
+      default: "pending",
+      index: true,
+    },
+
+    adminCatatan: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    reviewed: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
