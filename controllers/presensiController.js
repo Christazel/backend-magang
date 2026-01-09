@@ -4,22 +4,52 @@ import moment from "moment-timezone";
 
 const TIMEZONE = process.env.TIMEZONE || "Asia/Jakarta";
 
+// Default window (kalau env tidak diset)
+const PRESENSI_MASUK_START = process.env.PRESENSI_MASUK_START || "08:00:00";
+const PRESENSI_MASUK_END = process.env.PRESENSI_MASUK_END || "08:59:59";
+
+const PRESENSI_KELUAR_START = process.env.PRESENSI_KELUAR_START || "16:00:00";
+const PRESENSI_KELUAR_END = process.env.PRESENSI_KELUAR_END || "23:59:59";
+
+const buildMomentAt = (tanggalYYYYMMDD, timeHHmmss) => {
+  return moment.tz(`${tanggalYYYYMMDD} ${timeHHmmss}`, "YYYY-MM-DD HH:mm:ss", TIMEZONE);
+};
+
+const assertWithinWindow = (now, start, end, label) => {
+  if (!now.isBetween(start, end, undefined, "[]")) {
+    return {
+      ok: false,
+      status: 403,
+      msg: `Presensi ${label} hanya bisa pada ${start.format("HH:mm:ss")} - ${end.format(
+        "HH:mm:ss"
+      )} WIB. Sekarang: ${now.format("HH:mm:ss")} WIB.`,
+    };
+  }
+  return { ok: true };
+};
+
 // ✅ Absen Masuk
 export const absenMasuk = async (req, res) => {
   try {
     const userId = req.user.id;
-    const tanggal = moment().tz(TIMEZONE).format("YYYY-MM-DD");
+
+    const now = moment().tz(TIMEZONE);
+    const tanggal = now.format("YYYY-MM-DD");
+
+    // Validasi jam masuk
+    const start = buildMomentAt(tanggal, PRESENSI_MASUK_START);
+    const end = buildMomentAt(tanggal, PRESENSI_MASUK_END);
+    const gate = assertWithinWindow(now, start, end, "masuk");
+    if (!gate.ok) return res.status(gate.status).json({ msg: gate.msg });
 
     let presensi = await Presensi.findOne({ user: userId, tanggal });
     if (presensi && presensi.jamMasuk) {
       return res.status(400).json({ msg: "Anda sudah absen masuk hari ini." });
     }
 
-    if (!presensi) {
-      presensi = new Presensi({ user: userId, tanggal });
-    }
+    if (!presensi) presensi = new Presensi({ user: userId, tanggal });
 
-    presensi.jamMasuk = moment().tz(TIMEZONE).format("HH:mm:ss");
+    presensi.jamMasuk = now.format("HH:mm:ss");
     presensi.lokasiMasuk = `${req.body.latitude},${req.body.longitude}`;
     await presensi.save();
 
@@ -33,7 +63,15 @@ export const absenMasuk = async (req, res) => {
 export const absenKeluar = async (req, res) => {
   try {
     const userId = req.user.id;
-    const tanggal = moment().tz(TIMEZONE).format("YYYY-MM-DD");
+
+    const now = moment().tz(TIMEZONE);
+    const tanggal = now.format("YYYY-MM-DD");
+
+    // Validasi jam keluar
+    const start = buildMomentAt(tanggal, PRESENSI_KELUAR_START);
+    const end = buildMomentAt(tanggal, PRESENSI_KELUAR_END);
+    const gate = assertWithinWindow(now, start, end, "keluar");
+    if (!gate.ok) return res.status(gate.status).json({ msg: gate.msg });
 
     let presensi = await Presensi.findOne({ user: userId, tanggal });
     if (!presensi || !presensi.jamMasuk) {
@@ -43,7 +81,7 @@ export const absenKeluar = async (req, res) => {
       return res.status(400).json({ msg: "Sudah absen keluar hari ini" });
     }
 
-    presensi.jamKeluar = moment().tz(TIMEZONE).format("HH:mm:ss");
+    presensi.jamKeluar = now.format("HH:mm:ss");
     presensi.lokasiKeluar = `${req.body.latitude},${req.body.longitude}`;
     await presensi.save();
 
