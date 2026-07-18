@@ -3,6 +3,9 @@ import { Readable } from "stream";
 import Laporan from "../models/laporanModel.js";
 import { getBucket } from "../utils/gridfs.js";
 
+// Batas ukuran file (4MB dalam bytes)
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
+
 // ✅ Upload laporan oleh peserta (multipart/form-data)
 export const uploadLaporan = async (req, res) => {
   try {
@@ -69,11 +72,9 @@ export const getLaporanPeserta = async (req, res) => {
   }
 };
 
-// ✅ Ambil semua laporan (admin)
+// ✅ Ambil semua laporan (admin) — role check dilakukan di route middleware isAdmin
 export const getLaporanList = async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.status(403).json({ msg: "Akses ditolak" });
-
     const laporanList = await Laporan.find()
       .populate("user", "name email")
       .populate("reviewedBy", "name email")
@@ -125,8 +126,15 @@ export const uploadLaporanBase64 = async (req, res) => {
     const { filename, base64, judul, deskripsi, mimeType } = req.body;
     if (!filename || !base64) return res.status(400).json({ msg: "Data base64 tidak lengkap." });
 
-    const bucket = getBucket();
+    // ✅ Validasi ukuran file sebelum diproses (cegah OOM / DoS)
     const buffer = Buffer.from(base64, "base64");
+    if (buffer.length > MAX_FILE_SIZE) {
+      return res.status(413).json({
+        msg: `Ukuran file melebihi batas maksimal (${MAX_FILE_SIZE / 1024 / 1024}MB).`,
+      });
+    }
+
+    const bucket = getBucket();
 
     const gfsFilename = `${Date.now()}-${filename}`;
     const uploadStream = bucket.openUploadStream(gfsFilename, {
@@ -166,13 +174,9 @@ export const uploadLaporanBase64 = async (req, res) => {
   }
 };
 
-// =========================
-// ✅ BARU: ADMIN REVIEW
-// =========================
+// ✅ ADMIN REVIEW — role check dilakukan di route middleware isAdmin
 export const adminReviewLaporan = async (req, res) => {
   try {
-    if (req.user.role !== "admin") return res.status(403).json({ msg: "Akses ditolak" });
-
     const { status, adminCatatan } = req.body;
 
     if (!["sesuai", "revisi", "pending"].includes(status)) {
@@ -200,9 +204,7 @@ export const adminReviewLaporan = async (req, res) => {
   }
 };
 
-// =========================
-// ✅ BARU: PESERTA KIRIM ULANG (REPLACE FILE) - MULTIPART
-// =========================
+// ✅ PESERTA: kirim ulang laporan (replace file) — MULTIPART
 export const updateLaporanFile = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ msg: "File tidak ditemukan." });
@@ -243,11 +245,11 @@ export const updateLaporanFile = async (req, res) => {
 
       await laporan.save();
 
-      // hapus file lama (biar gridfs gak numpuk)
+      // ✅ Hapus file lama — log warning jika gagal agar bisa dideteksi
       try {
         await bucket.delete(new mongoose.Types.ObjectId(oldFileId));
-      } catch (_) {
-        // kalau gagal hapus, jangan gagalkan request (opsional)
+      } catch (deleteErr) {
+        console.warn(`[GridFS] Gagal hapus file lama (fileId: ${oldFileId}):`, deleteErr.message);
       }
 
       return res.status(200).json({ msg: "Laporan berhasil dikirim ulang. Menunggu penilaian admin.", laporan });
@@ -257,16 +259,21 @@ export const updateLaporanFile = async (req, res) => {
   }
 };
 
-// =========================
-// ✅ BARU: PESERTA KIRIM ULANG (REPLACE FILE) - BASE64
-// =========================
+// ✅ PESERTA: kirim ulang laporan (replace file) — BASE64
 export const updateLaporanBase64ById = async (req, res) => {
   try {
     const { filename, base64, mimeType } = req.body;
     if (!filename || !base64) return res.status(400).json({ msg: "Data base64 tidak lengkap." });
 
-    const bucket = getBucket();
+    // ✅ Validasi ukuran file sebelum diproses
     const buffer = Buffer.from(base64, "base64");
+    if (buffer.length > MAX_FILE_SIZE) {
+      return res.status(413).json({
+        msg: `Ukuran file melebihi batas maksimal (${MAX_FILE_SIZE / 1024 / 1024}MB).`,
+      });
+    }
+
+    const bucket = getBucket();
 
     const laporan = await Laporan.findOne({ _id: req.params.id, user: req.user.id });
     if (!laporan) return res.status(404).json({ msg: "Laporan tidak ditemukan" });
@@ -301,10 +308,12 @@ export const updateLaporanBase64ById = async (req, res) => {
 
       await laporan.save();
 
-      // hapus file lama
+      // ✅ Hapus file lama — log warning jika gagal
       try {
         await bucket.delete(new mongoose.Types.ObjectId(oldFileId));
-      } catch (_) {}
+      } catch (deleteErr) {
+        console.warn(`[GridFS] Gagal hapus file lama (fileId: ${oldFileId}):`, deleteErr.message);
+      }
 
       return res.status(200).json({ msg: "Laporan berhasil dikirim ulang (Web). Menunggu penilaian admin.", laporan });
     });
