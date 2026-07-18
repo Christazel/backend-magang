@@ -1,13 +1,22 @@
 import Feedback from "../models/feedbackModel.js";
 
-// Admin mengirim feedback ke peserta
+// ✅ Admin mengirim feedback ke peserta — role sudah divalidasi di route (isAdmin middleware)
 export const createFeedback = async (req, res) => {
   const { userId, feedback } = req.body;
+
+  // ✅ Validasi input wajib
+  if (!userId || !feedback) {
+    return res.status(400).json({ msg: "userId dan feedback wajib diisi." });
+  }
+
+  if (typeof feedback !== "string" || feedback.trim().length === 0) {
+    return res.status(400).json({ msg: "Feedback tidak boleh kosong." });
+  }
 
   try {
     const newFeedback = new Feedback({
       user: userId,
-      feedback,
+      feedback: feedback.trim(),
     });
 
     await newFeedback.save();
@@ -27,7 +36,7 @@ export const getUserFeedback = async (req, res) => {
   }
 };
 
-// Admin melihat semua feedback (opsional)
+// ✅ Admin melihat semua feedback — role sudah divalidasi di route (isAdmin middleware)
 export const getAllFeedback = async (req, res) => {
   try {
     const feedbacks = await Feedback.find().populate("user", "name email").sort({ createdAt: -1 });
