@@ -4,6 +4,13 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import mongoose from "mongoose";
 
+// Security & Enhancement Packages
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
+import xss from "xss-clean";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+
 import authRoutes from "./routes/authRoutes.js";
 import presensiRoutes from "./routes/presensiRoutes.js";
 import laporanRoutes from "./routes/laporanRoutes.js";
@@ -20,6 +27,28 @@ if (!process.env.JWT_SECRET) {
 await connectDB(); // ✅ penting: await supaya GridFS siap
 
 const app = express();
+
+// ==========================================
+// 🛡️ SECURITY & OBSERVABILITY MIDDLEWARE
+// ==========================================
+
+// 1. Security HTTP Headers
+app.use(helmet());
+
+// 2. Request Logging
+if (process.env.NODE_ENV !== "test") {
+  app.use(morgan("dev"));
+}
+
+// 3. Global Rate Limiter (Anti-Spam / DDoS)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 Menit
+  max: 500, // Batasi setiap IP maks 500 request per 15 menit
+  message: { msg: "Terlalu banyak request, silakan coba lagi setelah 15 menit." },
+  standardHeaders: true, // Kembalikan info rate limit di header `RateLimit-*`
+  legacyHeaders: false, // Matikan header `X-RateLimit-*`
+});
+app.use(globalLimiter);
 
 // ✅ CORS whitelist — hanya izinkan domain yang terdaftar di env ALLOWED_ORIGINS
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -40,6 +69,11 @@ app.use(
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// 4. Data Sanitization (Harus setelah body-parser)
+app.use(mongoSanitize()); // Cegah NoSQL Injection
+app.use(xss()); // Cegah XSS
+
 
 app.use("/api/auth", authRoutes);
 app.use("/api/presensi", presensiRoutes);
