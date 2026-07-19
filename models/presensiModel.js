@@ -17,4 +17,7 @@ const presensiSchema = new mongoose.Schema({
   lokasiKeluar: { type: String },
 }, { timestamps: true });
 
+// ✅ Compound index: 1 user hanya bisa punya 1 record presensi per hari
+presensiSchema.index({ user: 1, tanggal: 1 }, { unique: true });
+
 export default mongoose.model("Presensi", presensiSchema);
