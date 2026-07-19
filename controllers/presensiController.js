@@ -1,5 +1,6 @@
 // ======= controllers/presensiController.js =======
 import Presensi from "../models/presensiModel.js";
+import User from "../models/userModel.js";
 import moment from "moment-timezone";
 
 const TIMEZONE = process.env.TIMEZONE || "Asia/Jakarta";
@@ -105,10 +106,31 @@ export const getPresensiHariIni = async (req, res) => {
 };
 
 // ✅ Ambil riwayat presensi user
+// ✅ Ambil riwayat presensi user (dengan Pagination via Header)
 export const getRiwayatPresensi = async (req, res) => {
   try {
     const userId = req.user.id;
-    const data = await Presensi.find({ user: userId }).sort({ tanggal: -1 });
+    
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const skip = (page - 1) * limit;
+
+    const data = await Presensi.find({ user: userId })
+      .sort({ tanggal: -1 })
+      .skip(skip)
+      .limit(limit);
+      
+    const totalCount = await Presensi.countDocuments({ user: userId });
+
+    // Set custom headers for backward-compatible pagination
+    res.set("X-Total-Count", totalCount);
+    res.set("X-Total-Pages", Math.ceil(totalCount / limit));
+    res.set("X-Current-Page", page);
+    res.set("X-Per-Page", limit);
+    // Expose headers agar bisa dibaca frontend via CORS
+    res.set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Pages, X-Current-Page, X-Per-Page");
+
     res.json(data);
   } catch (error) {
     res.status(500).json({ msg: "Gagal ambil riwayat", error: error.message });
@@ -116,11 +138,42 @@ export const getRiwayatPresensi = async (req, res) => {
 };
 
 // ✅ Ambil semua presensi (khusus admin)
+// ✅ Ambil semua presensi (khusus admin, support Search + Pagination)
 export const getAllPresensi = async (req, res) => {
   try {
-    const data = await Presensi.find()
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+
+    let query = {};
+
+    // Jika ada keyword search, cari ID user yang cocok terlebih dahulu
+    if (search) {
+      const users = await User.find({
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+        ],
+      }).select("_id");
+      const userIds = users.map((u) => u._id);
+      query = { user: { $in: userIds } };
+    }
+
+    const data = await Presensi.find(query)
       .populate("user", "name email")
-      .sort({ tanggal: -1 });
+      .sort({ tanggal: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalCount = await Presensi.countDocuments(query);
+
+    // Set custom headers for backward-compatible pagination
+    res.set("X-Total-Count", totalCount);
+    res.set("X-Total-Pages", Math.ceil(totalCount / limit));
+    res.set("X-Current-Page", page);
+    res.set("X-Per-Page", limit);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Pages, X-Current-Page, X-Per-Page");
 
     const filteredData = data.filter((item) => item.user !== null);
     res.status(200).json(filteredData);

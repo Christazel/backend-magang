@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Readable } from "stream";
 import Laporan from "../models/laporanModel.js";
+import User from "../models/userModel.js";
 import { getBucket } from "../utils/gridfs.js";
 
 // Batas ukuran file (4MB dalam bytes)
@@ -59,12 +60,26 @@ export const uploadLaporan = async (req, res) => {
   }
 };
 
-// ✅ Ambil laporan milik peserta
+// ✅ Ambil laporan milik peserta (dengan Pagination via Header)
 export const getLaporanPeserta = async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const skip = (page - 1) * limit;
+
     const laporan = await Laporan.find({ user: req.user.id })
       .populate("reviewedBy", "name email")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalCount = await Laporan.countDocuments({ user: req.user.id });
+
+    res.set("X-Total-Count", totalCount);
+    res.set("X-Total-Pages", Math.ceil(totalCount / limit));
+    res.set("X-Current-Page", page);
+    res.set("X-Per-Page", limit);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Pages, X-Current-Page, X-Per-Page");
 
     res.status(200).json(laporan);
   } catch (error) {
@@ -72,13 +87,48 @@ export const getLaporanPeserta = async (req, res) => {
   }
 };
 
-// ✅ Ambil semua laporan (admin) — role check dilakukan di route middleware isAdmin
+// ✅ Ambil semua laporan (admin) — support Search + Pagination via Header
 export const getLaporanList = async (req, res) => {
   try {
-    const laporanList = await Laporan.find()
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+
+    let query = {};
+
+    if (search) {
+      const users = await User.find({
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+        ],
+      }).select("_id");
+      const userIds = users.map((u) => u._id);
+      
+      // Bisa search berdasarkan nama/email user ATAU judul laporan
+      query = {
+        $or: [
+          { user: { $in: userIds } },
+          { judul: { $regex: search, $options: "i" } }
+        ]
+      };
+    }
+
+    const laporanList = await Laporan.find(query)
       .populate("user", "name email")
       .populate("reviewedBy", "name email")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalCount = await Laporan.countDocuments(query);
+
+    res.set("X-Total-Count", totalCount);
+    res.set("X-Total-Pages", Math.ceil(totalCount / limit));
+    res.set("X-Current-Page", page);
+    res.set("X-Per-Page", limit);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Pages, X-Current-Page, X-Per-Page");
 
     res.status(200).json(laporanList);
   } catch (error) {
