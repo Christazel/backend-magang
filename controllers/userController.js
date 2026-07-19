@@ -1,4 +1,4 @@
-import User from "../models/user.js";
+import User from "../models/userModel.js";
 import Presensi from "../models/presensiModel.js";
 import Laporan from "../models/laporanModel.js";
 
