@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import mongoose from "mongoose";
-import { authMiddleware } from "../middleware/authMiddleware.js";
+import { authMiddleware, isAdmin } from "../middleware/authMiddleware.js";
 import { getBucket } from "../utils/gridfs.js";
 
 import {
@@ -11,8 +11,6 @@ import {
   updateDeskripsiLaporan,
   deleteLaporan,
   uploadLaporanBase64,
-
-  // ✅ baru
   adminReviewLaporan,
   updateLaporanFile,
   updateLaporanBase64ById,
@@ -35,11 +33,11 @@ router.post("/base64", authMiddleware, uploadLaporanBase64);
 // Get laporan milik peserta
 router.get("/", authMiddleware, getLaporanPeserta);
 
-// Get semua laporan (admin)
-router.get("/admin", authMiddleware, getLaporanList);
+// ✅ Get semua laporan — dilindungi isAdmin middleware
+router.get("/admin", authMiddleware, isAdmin, getLaporanList);
 
-// ✅ ADMIN: nilai laporan (sesuai/revisi + catatan)
-router.put("/admin/:id/review", authMiddleware, adminReviewLaporan);
+// ✅ ADMIN: nilai laporan — dilindungi isAdmin middleware
+router.put("/admin/:id/review", authMiddleware, isAdmin, adminReviewLaporan);
 
 // Update deskripsi (peserta)
 router.put("/:id", authMiddleware, updateDeskripsiLaporan);
@@ -54,6 +52,7 @@ router.put("/:id/base64", authMiddleware, updateLaporanBase64ById);
 router.delete("/:id", authMiddleware, deleteLaporan);
 
 // ✅ Download laporan berdasarkan fileId GridFS
+// ✅ Ownership check: peserta hanya bisa download file miliknya; admin bisa semua
 router.get("/download/:fileId", authMiddleware, async (req, res) => {
   try {
     const bucket = getBucket();
@@ -63,6 +62,15 @@ router.get("/download/:fileId", authMiddleware, async (req, res) => {
     if (!files.length) return res.status(404).json({ msg: "File tidak ditemukan" });
 
     const f = files[0];
+
+    // ✅ Verifikasi kepemilikan file (kecuali admin)
+    if (req.user.role !== "admin") {
+      const ownerId = f.metadata?.userId?.toString();
+      if (!ownerId || ownerId !== req.user.id.toString()) {
+        return res.status(403).json({ msg: "Akses ditolak. File bukan milik Anda." });
+      }
+    }
+
     res.setHeader("Content-Type", f.contentType || "application/octet-stream");
     res.setHeader("Content-Disposition", `attachment; filename="${f.filename}"`);
 
