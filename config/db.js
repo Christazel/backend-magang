@@ -10,8 +10,8 @@ const connectDB = async () => {
     }
 
     const conn = await mongoose.connect(process.env.MONGO_URI, {
-      // opsi ini aman, boleh ditambah sesuai kebutuhan
       serverSelectionTimeoutMS: 10000,
+      bufferCommands: false, // ✅ Optimasi untuk Serverless (Vercel) agar tidak hang jika koneksi terputus
     });
 
     console.log("✅ MongoDB Connected:", conn.connection.host);

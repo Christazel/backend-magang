@@ -16,9 +16,10 @@ export const register = async (req, res) => {
     return res.status(400).json({ error: "Format email tidak valid." });
   }
 
-  // ✅ Validasi panjang password minimal
-  if (password.length < 6) {
-    return res.status(400).json({ error: "Password minimal 6 karakter." });
+  // ✅ Validasi panjang & kompleksitas password (min 8 karakter, huruf + angka)
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({ error: "Password minimal 8 karakter dan harus mengandung kombinasi huruf dan angka." });
   }
 
   try {
