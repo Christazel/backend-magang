@@ -10,19 +10,21 @@ const MAX_FILE_SIZE = 4 * 1024 * 1024;
 // ✅ Upload laporan oleh peserta (multipart/form-data)
 export const uploadLaporan = async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ msg: "File tidak ditemukan." });
+    if (!req.files || !req.files.file) return res.status(400).json({ msg: "File tidak ditemukan." });
+
+    const fileUpload = req.files.file;
 
     const { judul, deskripsi } = req.body;
     const bucket = getBucket();
 
-    const gfsFilename = `${Date.now()}-${req.file.originalname}`;
+    const gfsFilename = `${Date.now()}-${fileUpload.name}`;
 
     const uploadStream = bucket.openUploadStream(gfsFilename, {
-      contentType: req.file.mimetype,
-      metadata: { userId: req.user.id, originalname: req.file.originalname },
+      contentType: fileUpload.mimetype,
+      metadata: { userId: req.user.id, originalname: fileUpload.name },
     });
 
-    Readable.from(req.file.buffer).pipe(uploadStream);
+    Readable.from(fileUpload.data).pipe(uploadStream);
 
     uploadStream.on("error", (e) => {
       return res.status(500).json({ msg: "Gagal upload laporan", error: e.message });
@@ -33,17 +35,17 @@ export const uploadLaporan = async (req, res) => {
         user: req.user.id,
 
         // ✅ judul dari form, fallback ke nama file
-        judul: (judul && judul.trim()) ? judul.trim() : req.file.originalname,
+        judul: (judul && judul.trim()) ? judul.trim() : fileUpload.name,
         deskripsi: deskripsi || "",
 
         // ✅ GridFS file id
         fileId: uploadStream.id,
 
         // metadata
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
+        originalName: fileUpload.name,
+        mimeType: fileUpload.mimetype,
         gfsFilename,
-        size: file?.length || req.file.size || 0,
+        size: file?.length || fileUpload.size || 0,
 
         // ✅ penilaian default
         status: "pending",
@@ -257,7 +259,8 @@ export const adminReviewLaporan = async (req, res) => {
 // ✅ PESERTA: kirim ulang laporan (replace file) — MULTIPART
 export const updateLaporanFile = async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ msg: "File tidak ditemukan." });
+    if (!req.files || !req.files.file) return res.status(400).json({ msg: "File tidak ditemukan." });
+    const fileUpload = req.files.file;
 
     const bucket = getBucket();
 
@@ -266,13 +269,13 @@ export const updateLaporanFile = async (req, res) => {
 
     const oldFileId = laporan.fileId;
 
-    const gfsFilename = `${Date.now()}-${req.file.originalname}`;
+    const gfsFilename = `${Date.now()}-${fileUpload.name}`;
     const uploadStream = bucket.openUploadStream(gfsFilename, {
-      contentType: req.file.mimetype,
-      metadata: { userId: req.user.id, originalname: req.file.originalname },
+      contentType: fileUpload.mimetype,
+      metadata: { userId: req.user.id, originalname: fileUpload.name },
     });
 
-    Readable.from(req.file.buffer).pipe(uploadStream);
+    Readable.from(fileUpload.data).pipe(uploadStream);
 
     uploadStream.on("error", (e) => {
       return res.status(500).json({ msg: "Gagal upload laporan", error: e.message });
@@ -281,10 +284,10 @@ export const updateLaporanFile = async (req, res) => {
     uploadStream.on("finish", async (file) => {
       // update laporan ke file baru
       laporan.fileId = uploadStream.id;
-      laporan.originalName = req.file.originalname;
-      laporan.mimeType = req.file.mimetype;
+      laporan.originalName = fileUpload.name;
+      laporan.mimeType = fileUpload.mimetype;
       laporan.gfsFilename = gfsFilename;
-      laporan.size = file?.length || req.file.size || 0;
+      laporan.size = file?.length || fileUpload.size || 0;
 
       // ✅ reset penilaian agar admin nilai ulang
       laporan.status = "pending";

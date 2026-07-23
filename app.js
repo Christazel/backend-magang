@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 // Security & Enhancement Packages
 import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
-import xss from "xss-clean";
+import { xss } from "express-xss-sanitizer";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 
@@ -72,7 +72,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // 4. Data Sanitization (Harus setelah body-parser)
 app.use(mongoSanitize()); // Cegah NoSQL Injection
-app.use(xss()); // Cegah XSS
+app.use(xss()); // Cegah XSS (dengan express-xss-sanitizer)
 
 
 app.use("/api/auth", authRoutes);
