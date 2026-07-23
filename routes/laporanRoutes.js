@@ -1,5 +1,5 @@
 import express from "express";
-import multer from "multer";
+import fileUpload from "express-fileupload";
 import mongoose from "mongoose";
 import { authMiddleware, isAdmin } from "../middleware/authMiddleware.js";
 import { getBucket } from "../utils/gridfs.js";
@@ -18,14 +18,14 @@ import {
 
 const router = express.Router();
 
-// ✅ Multer MEMORY (aman untuk Vercel serverless)
-const upload = multer({
-  storage: multer.memoryStorage(),
+// ✅ Express FileUpload (aman untuk Vercel serverless)
+router.use(fileUpload({
   limits: { fileSize: 4 * 1024 * 1024 }, // 4MB
-});
+  abortOnLimit: true,
+}));
 
 // Upload laporan oleh peserta (multipart)
-router.post("/", authMiddleware, upload.single("file"), uploadLaporan);
+router.post("/", authMiddleware, uploadLaporan);
 
 // Upload laporan via base64
 router.post("/base64", authMiddleware, uploadLaporanBase64);
@@ -43,7 +43,7 @@ router.put("/admin/:id/review", authMiddleware, isAdmin, adminReviewLaporan);
 router.put("/:id", authMiddleware, updateDeskripsiLaporan);
 
 // ✅ PESERTA: kirim ulang laporan (replace file) multipart
-router.put("/:id/file", authMiddleware, upload.single("file"), updateLaporanFile);
+router.put("/:id/file", authMiddleware, updateLaporanFile);
 
 // ✅ PESERTA: kirim ulang laporan (replace file) base64
 router.put("/:id/base64", authMiddleware, updateLaporanBase64ById);
