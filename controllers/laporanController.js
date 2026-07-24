@@ -7,12 +7,20 @@ import { getBucket } from "../utils/gridfs.js";
 // Batas ukuran file (4MB dalam bytes)
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
+// Helper: Validasi Magic Bytes PDF
+const isValidPDF = (buffer) => buffer && buffer.length >= 5 && buffer.toString("hex", 0, 5) === "255044462d";
+
 // ✅ Upload laporan oleh peserta (multipart/form-data)
 export const uploadLaporan = async (req, res) => {
   try {
     if (!req.files || !req.files.file) return res.status(400).json({ msg: "File tidak ditemukan." });
 
     const fileUpload = req.files.file;
+
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(fileUpload.data)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
 
     const { judul, deskripsi } = req.body;
     const bucket = getBucket();
@@ -186,6 +194,11 @@ export const uploadLaporanBase64 = async (req, res) => {
       });
     }
 
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(buffer)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
+
     const bucket = getBucket();
 
     const gfsFilename = `${Date.now()}-${filename}`;
@@ -262,6 +275,11 @@ export const updateLaporanFile = async (req, res) => {
     if (!req.files || !req.files.file) return res.status(400).json({ msg: "File tidak ditemukan." });
     const fileUpload = req.files.file;
 
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(fileUpload.data)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
+
     const bucket = getBucket();
 
     const laporan = await Laporan.findOne({ _id: req.params.id, user: req.user.id });
@@ -324,6 +342,11 @@ export const updateLaporanBase64ById = async (req, res) => {
       return res.status(413).json({
         msg: `Ukuran file melebihi batas maksimal (${MAX_FILE_SIZE / 1024 / 1024}MB).`,
       });
+    }
+
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(buffer)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
     }
 
     const bucket = getBucket();

@@ -7,7 +7,7 @@ const router = express.Router();
 // 🛡️ Auth Limiter Khusus (Anti-Bruteforce Password)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 menit
-  max: 10, // Hanya boleh 10x percobaan per IP
+  max: 5, // Hanya boleh 5x percobaan per IP
   message: { msg: "Terlalu banyak percobaan login, akun ini diblokir sementara selama 15 menit." },
   standardHeaders: true,
   legacyHeaders: false,
