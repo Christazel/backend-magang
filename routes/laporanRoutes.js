@@ -14,6 +14,7 @@ import {
   adminReviewLaporan,
   updateLaporanFile,
   updateLaporanBase64ById,
+  cleanupOrphanedFiles,
 } from "../controllers/laporanController.js";
 
 const router = express.Router();
@@ -38,6 +39,9 @@ router.get("/admin", authMiddleware, isAdmin, getLaporanList);
 
 // ✅ ADMIN: nilai laporan — dilindungi isAdmin middleware
 router.put("/admin/:id/review", authMiddleware, isAdmin, adminReviewLaporan);
+
+// ✅ ADMIN: Bersihkan file hantu di GridFS
+router.delete("/admin/cleanup", authMiddleware, isAdmin, cleanupOrphanedFiles);
 
 // Update deskripsi (peserta)
 router.put("/:id", authMiddleware, updateDeskripsiLaporan);
