@@ -1,6 +1,8 @@
+import mongoose from "mongoose";
 import User from "../models/userModel.js";
 import Presensi from "../models/presensiModel.js";
 import Laporan from "../models/laporanModel.js";
+import { getBucket } from "../utils/gridfs.js";
 
 /**
  * Basic list peserta (dipakai di tempat lain jika butuh).
@@ -56,5 +58,42 @@ export const getAllPesertaWithStats = async (req, res) => {
   } catch (error) {
     console.error("❌ getAllPesertaWithStats error:", error);
     res.status(500).json({ msg: "Gagal mengambil data peserta (stats)", error: error.message });
+  }
+};
+
+/**
+ * Admin: Menghapus peserta secara permanen berserta seluruh rekam jejak (Cascading Delete)
+ */
+export const deletePeserta = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
+    if (user.role === "admin") return res.status(403).json({ msg: "Tidak dapat menghapus admin" });
+
+    // 1. Cari semua laporan milik peserta
+    const laporans = await Laporan.find({ user: user._id });
+    
+    // 2. Hapus file-file PDF di GridFS
+    const bucket = getBucket();
+    for (const lap of laporans) {
+      if (lap.fileId) {
+        try {
+          await bucket.delete(new mongoose.Types.ObjectId(lap.fileId));
+        } catch (e) {
+          console.warn(`[GridFS] Gagal hapus file terkait laporan: ${lap.fileId}`);
+        }
+      }
+    }
+
+    // 3. Hapus semua data Laporan dan Presensi secara permanen
+    await Laporan.deleteMany({ user: user._id });
+    await Presensi.deleteMany({ user: user._id });
+
+    // 4. Hapus User
+    await user.deleteOne();
+
+    res.status(200).json({ msg: "Peserta beserta seluruh riwayat presensi, laporan, dan file berhasil dibersihkan (Cascading Delete)." });
+  } catch (error) {
+    res.status(500).json({ msg: "Gagal menghapus peserta", error: error.message });
   }
 };

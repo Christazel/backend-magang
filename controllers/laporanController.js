@@ -2,10 +2,14 @@ import mongoose from "mongoose";
 import { Readable } from "stream";
 import Laporan from "../models/laporanModel.js";
 import User from "../models/userModel.js";
+import AuditLog from "../models/auditLogModel.js";
 import { getBucket } from "../utils/gridfs.js";
 
 // Batas ukuran file (4MB dalam bytes)
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
+
+// Helper: Validasi Magic Bytes PDF
+const isValidPDF = (buffer) => buffer && buffer.length >= 5 && buffer.toString("hex", 0, 5) === "255044462d";
 
 // ✅ Upload laporan oleh peserta (multipart/form-data)
 export const uploadLaporan = async (req, res) => {
@@ -13,6 +17,11 @@ export const uploadLaporan = async (req, res) => {
     if (!req.files || !req.files.file) return res.status(400).json({ msg: "File tidak ditemukan." });
 
     const fileUpload = req.files.file;
+
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(fileUpload.data)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
 
     const { judul, deskripsi } = req.body;
     const bucket = getBucket();
@@ -186,6 +195,11 @@ export const uploadLaporanBase64 = async (req, res) => {
       });
     }
 
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(buffer)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
+
     const bucket = getBucket();
 
     const gfsFilename = `${Date.now()}-${filename}`;
@@ -250,6 +264,13 @@ export const adminReviewLaporan = async (req, res) => {
       .populate("user", "name email")
       .populate("reviewedBy", "name email");
 
+    // ✅ REKAM AUDIT LOG
+    await AuditLog.create({
+      action: "REVIEW_LAPORAN",
+      user: req.user.id,
+      details: `Admin memberikan status "${status}" pada laporan "${laporan.judul}" milik user ID: ${laporan.user}`,
+    });
+
     return res.status(200).json({ msg: "Penilaian laporan berhasil disimpan", laporan: populated });
   } catch (error) {
     return res.status(500).json({ msg: "Gagal menilai laporan", error: error.message });
@@ -261,6 +282,11 @@ export const updateLaporanFile = async (req, res) => {
   try {
     if (!req.files || !req.files.file) return res.status(400).json({ msg: "File tidak ditemukan." });
     const fileUpload = req.files.file;
+
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(fileUpload.data)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
 
     const bucket = getBucket();
 
@@ -326,6 +352,11 @@ export const updateLaporanBase64ById = async (req, res) => {
       });
     }
 
+    // ✅ Pengecekan Magic Bytes PDF
+    if (!isValidPDF(buffer)) {
+      return res.status(400).json({ msg: "Keamanan Sistem: File yang diunggah BUKAN dokumen PDF yang sah." });
+    }
+
     const bucket = getBucket();
 
     const laporan = await Laporan.findOne({ _id: req.params.id, user: req.user.id });
@@ -372,5 +403,26 @@ export const updateLaporanBase64ById = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ msg: "Gagal mengirim ulang laporan base64", error: error.message });
+  }
+};
+
+// ✅ ADMIN: GARBAGE COLLECTION — Hapus file GridFS yang tidak punya induk (Orphaned Files)
+export const cleanupOrphanedFiles = async (req, res) => {
+  try {
+    const bucket = getBucket();
+    const files = await bucket.find().toArray();
+    let deletedCount = 0;
+
+    for (const file of files) {
+      const isReferenced = await Laporan.exists({ fileId: file._id });
+      if (!isReferenced) {
+        await bucket.delete(file._id);
+        deletedCount++;
+      }
+    }
+
+    return res.status(200).json({ msg: `Garbage Collection berhasil. ${deletedCount} file yatim piatu telah dihapus.` });
+  } catch (error) {
+    return res.status(500).json({ msg: "Gagal membersihkan file GridFS", error: error.message });
   }
 };
