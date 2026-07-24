@@ -8,7 +8,7 @@ import {
   getAllPresensi,
 } from "../controllers/presensiController.js";
 
-import { authMiddleware } from "../middleware/authMiddleware.js";
+import { authMiddleware, isAdmin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -19,6 +19,6 @@ router.post("/masuk", authMiddleware, absenMasuk);
 router.post("/keluar", authMiddleware, absenKeluar);
 
 // ✅ Admin
-router.get("/admin", authMiddleware, getAllPresensi);
+router.get("/admin", authMiddleware, isAdmin, getAllPresensi);
 
 export default router;
