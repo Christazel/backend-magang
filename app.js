@@ -9,7 +9,6 @@ import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
 import { xss } from "express-xss-sanitizer";
 import hpp from "hpp";
-import compression from "compression";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 
@@ -36,9 +35,6 @@ const app = express();
 
 // 1. Security HTTP Headers
 app.use(helmet());
-
-// ✅ 1.5. Payload Compression (Vercel Performance)
-app.use(compression());
 
 // 2. Request Logging
 if (process.env.NODE_ENV !== "test") {
