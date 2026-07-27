@@ -45,3 +45,15 @@ export const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === "admin") return next();
   return res.status(403).json({ msg: "Akses ditolak, hanya admin.", code: "FORBIDDEN" });
 };
+
+/**
+ * ✅ Helper: ekstrak informasi client (IP & User-Agent)
+ * Berguna untuk Audit Log — bisa di-import di controller mana saja.
+ *
+ * @param {import('express').Request} req
+ * @returns {{ ip: string|null, userAgent: string|null }}
+ */
+export const getClientInfo = (req) => ({
+  ip: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null,
+  userAgent: req.headers["user-agent"] || null,
+});

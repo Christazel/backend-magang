@@ -4,6 +4,7 @@ import Laporan from "../models/laporanModel.js";
 import User from "../models/userModel.js";
 import AuditLog from "../models/auditLogModel.js";
 import { getBucket } from "../utils/gridfs.js";
+import { getClientInfo } from "../middleware/authMiddleware.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -272,11 +273,14 @@ export const adminReviewLaporan = async (req, res) => {
       .populate("user", "name email")
       .populate("reviewedBy", "name email");
 
-    // ✅ REKAM AUDIT LOG
+    // ✅ REKAM AUDIT LOG (dengan IP & User-Agent untuk security tracking)
+    const { ip, userAgent } = getClientInfo(req);
     await AuditLog.create({
       action: "REVIEW_LAPORAN",
       user: req.user.id,
       details: `Admin memberikan status "${status}" pada laporan "${laporan.judul}" milik user ID: ${laporan.user}`,
+      ip,
+      userAgent,
     });
 
     return res.status(200).json({ msg: "Penilaian laporan berhasil disimpan", laporan: populated });
