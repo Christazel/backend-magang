@@ -17,6 +17,7 @@ import presensiRoutes from "./routes/presensiRoutes.js";
 import laporanRoutes from "./routes/laporanRoutes.js";
 import feedbackRoutes from "./routes/feedbackRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import izinRoutes from "./routes/izinRoutes.js";
 
 dotenv.config();
 
@@ -84,6 +85,7 @@ app.use("/api/presensi", presensiRoutes);
 app.use("/api/laporan", laporanRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/izin", izinRoutes);
 
 // ✅ Health Check — untuk monitoring uptime & status koneksi
 app.get("/api/health", (req, res) => {

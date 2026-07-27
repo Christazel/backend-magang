@@ -101,3 +101,34 @@ export const deletePeserta = async (req, res) => {
     res.status(500).json({ msg: "Gagal menghapus peserta", error: isProduction ? undefined : error.message });
   }
 };
+
+// ─────────────────────────────────────────────────
+// [ADMIN] PUT /api/users/:id/reset-password — Reset password peserta
+// ─────────────────────────────────────────────────
+import bcrypt from "bcryptjs";
+
+export const resetPasswordPeserta = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ msg: "User tidak ditemukan" });
+    }
+    if (user.role === "admin") {
+      return res.status(403).json({ msg: "Tidak dapat mereset password admin lain" });
+    }
+
+    const defaultPassword = process.env.DEFAULT_PASSWORD || "Magang123";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ msg: `Password berhasil direset menjadi: ${defaultPassword}` });
+  } catch (error) {
+    console.error("[resetPasswordPeserta] Error:", error);
+    res.status(500).json({ msg: "Gagal mereset password", error: isProduction ? undefined : error.message });
+  }
+};
+

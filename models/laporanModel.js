@@ -72,6 +72,11 @@ const laporanSchema = new mongoose.Schema(
       index: true,
     },
 
+    dibacaPeserta: {
+      type: Boolean,
+      default: false,
+    },
+
     reviewedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
