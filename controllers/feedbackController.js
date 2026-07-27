@@ -29,10 +29,27 @@ export const createFeedback = async (req, res) => {
   }
 };
 
-// Peserta melihat feedback milik mereka
+// ✅ Peserta melihat feedback milik mereka (dengan Pagination via Header)
 export const getUserFeedback = async (req, res) => {
   try {
-    const feedbacks = await Feedback.find({ user: req.user.id }).sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const [feedbacks, totalCount] = await Promise.all([
+      Feedback.find({ user: req.user.id })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Feedback.countDocuments({ user: req.user.id }),
+    ]);
+
+    res.set("X-Total-Count", totalCount);
+    res.set("X-Total-Pages", Math.ceil(totalCount / limit));
+    res.set("X-Current-Page", page);
+    res.set("X-Per-Page", limit);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Pages, X-Current-Page, X-Per-Page");
+
     res.status(200).json(feedbacks);
   } catch (error) {
     console.error("[getUserFeedback] Error:", error);
@@ -41,9 +58,28 @@ export const getUserFeedback = async (req, res) => {
 };
 
 // ✅ Admin melihat semua feedback — role sudah divalidasi di route (isAdmin middleware)
+// Support: search by nama/email user, pagination via header
 export const getAllFeedback = async (req, res) => {
   try {
-    const feedbacks = await Feedback.find().populate("user", "name email").sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const [feedbacks, totalCount] = await Promise.all([
+      Feedback.find()
+        .populate("user", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Feedback.countDocuments(),
+    ]);
+
+    res.set("X-Total-Count", totalCount);
+    res.set("X-Total-Pages", Math.ceil(totalCount / limit));
+    res.set("X-Current-Page", page);
+    res.set("X-Per-Page", limit);
+    res.set("Access-Control-Expose-Headers", "X-Total-Count, X-Total-Pages, X-Current-Page, X-Per-Page");
+
     res.status(200).json(feedbacks);
   } catch (error) {
     console.error("[getAllFeedback] Error:", error);
