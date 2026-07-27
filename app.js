@@ -36,9 +36,9 @@ const app = express();
 // 1. Security HTTP Headers
 app.use(helmet());
 
-// 2. Request Logging
+// 2. Request Logging — 'combined' di production, 'dev' di development
 if (process.env.NODE_ENV !== "test") {
-  app.use(morgan("dev"));
+  app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 }
 
 // 3. Global Rate Limiter (Anti-Spam / DDoS)

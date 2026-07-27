@@ -14,12 +14,14 @@ const laporanSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      maxlength: [200, "Judul laporan maksimal 200 karakter"],
     },
 
     deskripsi: {
       type: String,
       default: "",
       trim: true,
+      maxlength: [2000, "Deskripsi laporan maksimal 2000 karakter"],
     },
 
     // ✅ ID file GridFS (yang dipakai buat download)
@@ -61,6 +63,7 @@ const laporanSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+      maxlength: [1000, "Catatan admin maksimal 1000 karakter"],
     },
 
     reviewed: {

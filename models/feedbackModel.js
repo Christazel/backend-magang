@@ -10,6 +10,8 @@ const feedbackSchema = new mongoose.Schema(
     feedback: {
       type: String,
       required: true,
+      trim: true,
+      maxlength: [2000, "Feedback maksimal 2000 karakter"],
     },
   },
   { timestamps: true }

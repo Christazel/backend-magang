@@ -75,8 +75,10 @@ router.get("/download/:fileId", authMiddleware, async (req, res) => {
       }
     }
 
+    // ✅ Sanitasi filename — hilangkan karakter berbahaya (path traversal, dll)
+    const safeFilename = f.filename.replace(/[^\w.\-]/g, "_");
     res.setHeader("Content-Type", f.contentType || "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${f.filename}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
 
     bucket.openDownloadStream(fileId).pipe(res);
   } catch (err) {
