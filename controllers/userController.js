@@ -4,6 +4,8 @@ import Presensi from "../models/presensiModel.js";
 import Laporan from "../models/laporanModel.js";
 import { getBucket } from "../utils/gridfs.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 /**
  * Basic list peserta (dipakai di tempat lain jika butuh).
  * Tidak berisi statistik.
@@ -13,7 +15,8 @@ export const getAllPeserta = async (req, res) => {
     const peserta = await User.find({ role: "peserta" }).select("name email _id");
     res.status(200).json(peserta);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal mengambil data peserta", error: error.message });
+    console.error("[getAllPeserta] Error:", error);
+    res.status(500).json({ msg: "Gagal mengambil data peserta", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -57,7 +60,7 @@ export const getAllPesertaWithStats = async (req, res) => {
     res.status(200).json(data);
   } catch (error) {
     console.error("❌ getAllPesertaWithStats error:", error);
-    res.status(500).json({ msg: "Gagal mengambil data peserta (stats)", error: error.message });
+    res.status(500).json({ msg: "Gagal mengambil data peserta (stats)", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -94,6 +97,7 @@ export const deletePeserta = async (req, res) => {
 
     res.status(200).json({ msg: "Peserta beserta seluruh riwayat presensi, laporan, dan file berhasil dibersihkan (Cascading Delete)." });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal menghapus peserta", error: error.message });
+    console.error("[deletePeserta] Error:", error);
+    res.status(500).json({ msg: "Gagal menghapus peserta", error: isProduction ? undefined : error.message });
   }
 };

@@ -4,6 +4,7 @@ import User from "../models/userModel.js";
 import moment from "moment-timezone";
 
 const TIMEZONE = process.env.TIMEZONE || "Asia/Jakarta";
+const isProduction = process.env.NODE_ENV === "production";
 
 // Default window (kalau env tidak diset)
 const PRESENSI_MASUK_START = process.env.PRESENSI_MASUK_START || "08:00:00";
@@ -29,10 +30,26 @@ const assertWithinWindow = (now, start, end, label) => {
   return { ok: true };
 };
 
+// ✅ Helper: Validasi format koordinat GPS
+const validateCoordinate = (lat, lng) => {
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+  if (isNaN(latNum) || isNaN(lngNum)) return false;
+  if (latNum < -90 || latNum > 90) return false;
+  if (lngNum < -180 || lngNum > 180) return false;
+  return true;
+};
+
 // ✅ Absen Masuk
 export const absenMasuk = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // ✅ Validasi koordinat GPS
+    const { latitude, longitude } = req.body;
+    if (!latitude || !longitude || !validateCoordinate(latitude, longitude)) {
+      return res.status(400).json({ msg: "Koordinat lokasi tidak valid. Pastikan GPS aktif." });
+    }
 
     const now = moment().tz(TIMEZONE);
     const tanggal = now.format("YYYY-MM-DD");
@@ -51,12 +68,13 @@ export const absenMasuk = async (req, res) => {
     if (!presensi) presensi = new Presensi({ user: userId, tanggal });
 
     presensi.jamMasuk = now.format("HH:mm:ss");
-    presensi.lokasiMasuk = `${req.body.latitude},${req.body.longitude}`;
+    presensi.lokasiMasuk = `${parseFloat(latitude).toFixed(7)},${parseFloat(longitude).toFixed(7)}`;
     await presensi.save();
 
     res.json({ msg: "Absen masuk berhasil", presensi });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal absen masuk", error: error.message });
+    console.error("[absenMasuk] Error:", error);
+    res.status(500).json({ msg: "Gagal absen masuk", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -64,6 +82,12 @@ export const absenMasuk = async (req, res) => {
 export const absenKeluar = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // ✅ Validasi koordinat GPS
+    const { latitude, longitude } = req.body;
+    if (!latitude || !longitude || !validateCoordinate(latitude, longitude)) {
+      return res.status(400).json({ msg: "Koordinat lokasi tidak valid. Pastikan GPS aktif." });
+    }
 
     const now = moment().tz(TIMEZONE);
     const tanggal = now.format("YYYY-MM-DD");
@@ -83,12 +107,13 @@ export const absenKeluar = async (req, res) => {
     }
 
     presensi.jamKeluar = now.format("HH:mm:ss");
-    presensi.lokasiKeluar = `${req.body.latitude},${req.body.longitude}`;
+    presensi.lokasiKeluar = `${parseFloat(latitude).toFixed(7)},${parseFloat(longitude).toFixed(7)}`;
     await presensi.save();
 
     res.json({ msg: "Absen keluar berhasil", presensi });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal absen keluar", error: error.message });
+    console.error("[absenKeluar] Error:", error);
+    res.status(500).json({ msg: "Gagal absen keluar", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -101,11 +126,11 @@ export const getPresensiHariIni = async (req, res) => {
     const presensi = await Presensi.findOne({ user: userId, tanggal });
     res.json(presensi || {});
   } catch (error) {
-    res.status(500).json({ msg: "Gagal ambil data", error: error.message });
+    console.error("[getPresensiHariIni] Error:", error);
+    res.status(500).json({ msg: "Gagal ambil data", error: isProduction ? undefined : error.message });
   }
 };
 
-// ✅ Ambil riwayat presensi user
 // ✅ Ambil riwayat presensi user (dengan Pagination via Header)
 export const getRiwayatPresensi = async (req, res) => {
   try {
@@ -133,11 +158,11 @@ export const getRiwayatPresensi = async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal ambil riwayat", error: error.message });
+    console.error("[getRiwayatPresensi] Error:", error);
+    res.status(500).json({ msg: "Gagal ambil riwayat", error: isProduction ? undefined : error.message });
   }
 };
 
-// ✅ Ambil semua presensi (khusus admin)
 // ✅ Ambil semua presensi (khusus admin, support Search + Pagination)
 export const getAllPresensi = async (req, res) => {
   try {
@@ -178,6 +203,7 @@ export const getAllPresensi = async (req, res) => {
     const filteredData = data.filter((item) => item.user !== null);
     res.status(200).json(filteredData);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal ambil semua data", error: error.message });
+    console.error("[getAllPresensi] Error:", error);
+    res.status(500).json({ msg: "Gagal ambil semua data", error: isProduction ? undefined : error.message });
   }
 };
