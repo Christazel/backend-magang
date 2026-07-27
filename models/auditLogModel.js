@@ -17,6 +17,15 @@ const auditLogSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // ✅ Tracking keamanan tambahan
+    ip: {
+      type: String,
+      default: null,
+    },
+    userAgent: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
