@@ -2,6 +2,9 @@ import User from "../models/userModel.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+// ✅ Helper: tentukan apakah sedang di production
+const isProduction = process.env.NODE_ENV === "production";
+
 export const register = async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -10,13 +13,23 @@ export const register = async (req, res) => {
     return res.status(400).json({ error: "Nama, email, dan password wajib diisi." });
   }
 
+  // ✅ Validasi panjang nama
+  if (name.trim().length > 100) {
+    return res.status(400).json({ error: "Nama terlalu panjang (maks. 100 karakter)." });
+  }
+
   // ✅ Validasi format email sederhana
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: "Format email tidak valid." });
   }
 
-  // ✅ Validasi panjang & kompleksitas password (min 8 karakter, huruf + angka)
+  // ✅ Validasi panjang password (min 8, MAKS 128 — cegah bcrypt DoS)
+  if (password.length < 8 || password.length > 128) {
+    return res.status(400).json({ error: "Password harus antara 8–128 karakter." });
+  }
+
+  // ✅ Validasi kompleksitas password (huruf + angka)
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
   if (!passwordRegex.test(password)) {
     return res.status(400).json({ error: "Password minimal 8 karakter dan harus mengandung kombinasi huruf dan angka." });
@@ -44,7 +57,8 @@ export const register = async (req, res) => {
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[register] Error:", err);
+    res.status(500).json({ error: isProduction ? "Terjadi kesalahan server." : err.message });
   }
 };
 
@@ -54,6 +68,11 @@ export const login = async (req, res) => {
   // ✅ Validasi input wajib
   if (!email || !password) {
     return res.status(400).json({ error: "Email dan password wajib diisi." });
+  }
+
+  // ✅ Batasi panjang password input (cegah bcrypt DoS)
+  if (password.length > 128) {
+    return res.status(400).json({ error: "Email atau password salah." });
   }
 
   try {
@@ -79,6 +98,7 @@ export const login = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("[login] Error:", err);
+    res.status(500).json({ error: isProduction ? "Terjadi kesalahan server." : err.message });
   }
 };

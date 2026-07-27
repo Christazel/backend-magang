@@ -1,5 +1,7 @@
 import Feedback from "../models/feedbackModel.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 // ✅ Admin mengirim feedback ke peserta — role sudah divalidasi di route (isAdmin middleware)
 export const createFeedback = async (req, res) => {
   const { userId, feedback } = req.body;
@@ -22,7 +24,8 @@ export const createFeedback = async (req, res) => {
     await newFeedback.save();
     res.status(201).json({ msg: "Feedback berhasil dikirim", data: newFeedback });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal mengirim feedback", error: error.message });
+    console.error("[createFeedback] Error:", error);
+    res.status(500).json({ msg: "Gagal mengirim feedback", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -32,7 +35,8 @@ export const getUserFeedback = async (req, res) => {
     const feedbacks = await Feedback.find({ user: req.user.id }).sort({ createdAt: -1 });
     res.status(200).json(feedbacks);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal mengambil feedback", error: error.message });
+    console.error("[getUserFeedback] Error:", error);
+    res.status(500).json({ msg: "Gagal mengambil feedback", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -42,6 +46,7 @@ export const getAllFeedback = async (req, res) => {
     const feedbacks = await Feedback.find().populate("user", "name email").sort({ createdAt: -1 });
     res.status(200).json(feedbacks);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal mengambil semua feedback", error: error.message });
+    console.error("[getAllFeedback] Error:", error);
+    res.status(500).json({ msg: "Gagal mengambil semua feedback", error: isProduction ? undefined : error.message });
   }
 };

@@ -5,6 +5,8 @@ import User from "../models/userModel.js";
 import AuditLog from "../models/auditLogModel.js";
 import { getBucket } from "../utils/gridfs.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 // Batas ukuran file (4MB dalam bytes)
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
@@ -67,7 +69,8 @@ export const uploadLaporan = async (req, res) => {
       return res.status(201).json({ msg: "Laporan berhasil diupload", laporan });
     });
   } catch (error) {
-    return res.status(500).json({ msg: "Gagal upload laporan", error: error.message });
+    console.error("[uploadLaporan] Error:", error);
+    return res.status(500).json({ msg: "Gagal upload laporan", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -94,7 +97,8 @@ export const getLaporanPeserta = async (req, res) => {
 
     res.status(200).json(laporan);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal mengambil laporan", error: error.message });
+    console.error("[getLaporanPeserta] Error:", error);
+    res.status(500).json({ msg: "Gagal mengambil laporan", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -143,7 +147,8 @@ export const getLaporanList = async (req, res) => {
 
     res.status(200).json(laporanList);
   } catch (error) {
-    res.status(500).json({ msg: "Gagal mengambil laporan", error: error.message });
+    console.error("[getLaporanList] Error:", error);
+    res.status(500).json({ msg: "Gagal mengambil laporan (admin)", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -160,7 +165,8 @@ export const updateDeskripsiLaporan = async (req, res) => {
 
     res.status(200).json({ msg: "Deskripsi berhasil diupdate", laporan });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal update deskripsi", error: error.message });
+    console.error("[updateDeskripsiLaporan] Error:", error);
+    res.status(500).json({ msg: "Gagal update deskripsi", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -177,7 +183,8 @@ export const deleteLaporan = async (req, res) => {
 
     res.status(200).json({ msg: "Laporan berhasil dihapus" });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal menghapus laporan", error: error.message });
+    console.error("[deleteLaporan] Error:", error);
+    res.status(500).json({ msg: "Gagal menghapus laporan", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -236,7 +243,8 @@ export const uploadLaporanBase64 = async (req, res) => {
       return res.status(201).json({ msg: "Laporan berhasil diupload (Web)", laporan });
     });
   } catch (error) {
-    res.status(500).json({ msg: "Gagal upload laporan base64", error: error.message });
+    console.error("[uploadLaporanBase64] Error:", error);
+    res.status(500).json({ msg: "Gagal upload laporan base64", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -273,7 +281,8 @@ export const adminReviewLaporan = async (req, res) => {
 
     return res.status(200).json({ msg: "Penilaian laporan berhasil disimpan", laporan: populated });
   } catch (error) {
-    return res.status(500).json({ msg: "Gagal menilai laporan", error: error.message });
+    console.error("[adminReviewLaporan] Error:", error);
+    return res.status(500).json({ msg: "Gagal menilai laporan", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -334,7 +343,8 @@ export const updateLaporanFile = async (req, res) => {
       return res.status(200).json({ msg: "Laporan berhasil dikirim ulang. Menunggu penilaian admin.", laporan });
     });
   } catch (error) {
-    return res.status(500).json({ msg: "Gagal mengirim ulang laporan", error: error.message });
+    console.error("[updateLaporanFile] Error:", error);
+    return res.status(500).json({ msg: "Gagal mengirim ulang laporan", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -402,7 +412,8 @@ export const updateLaporanBase64ById = async (req, res) => {
       return res.status(200).json({ msg: "Laporan berhasil dikirim ulang (Web). Menunggu penilaian admin.", laporan });
     });
   } catch (error) {
-    return res.status(500).json({ msg: "Gagal mengirim ulang laporan base64", error: error.message });
+    console.error("[updateLaporanBase64ById] Error:", error);
+    return res.status(500).json({ msg: "Gagal mengirim ulang laporan base64", error: isProduction ? undefined : error.message });
   }
 };
 
@@ -423,6 +434,7 @@ export const cleanupOrphanedFiles = async (req, res) => {
 
     return res.status(200).json({ msg: `Garbage Collection berhasil. ${deletedCount} file yatim piatu telah dihapus.` });
   } catch (error) {
-    return res.status(500).json({ msg: "Gagal membersihkan file GridFS", error: error.message });
+    console.error("[cleanupOrphanedFiles] Error:", error);
+    return res.status(500).json({ msg: "Gagal membersihkan file GridFS", error: isProduction ? undefined : error.message });
   }
 };
