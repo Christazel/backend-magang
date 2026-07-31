@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   },
   password: { type: String, required: true },
   role: { type: String, enum: ["admin", "peserta"], default: "peserta" },
+  status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
 }, { timestamps: true });
 
 const User = mongoose.model("User", userSchema);
