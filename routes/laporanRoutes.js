@@ -15,6 +15,8 @@ import {
   updateLaporanFile,
   updateLaporanBase64ById,
   cleanupOrphanedFiles,
+  getMyNotifikasi,
+  tandaiDibaca,
 } from "../controllers/laporanController.js";
 
 const router = express.Router();
@@ -33,6 +35,12 @@ router.post("/base64", authMiddleware, uploadLaporanBase64);
 
 // Get laporan milik peserta
 router.get("/", authMiddleware, getLaporanPeserta);
+
+// ✅ Get notifikasi laporan (revisi belum dibaca)
+router.get("/notifikasi", authMiddleware, getMyNotifikasi);
+
+// ✅ Tandai notifikasi dibaca
+router.put("/:id/tandai-dibaca", authMiddleware, tandaiDibaca);
 
 // ✅ Get semua laporan — dilindungi isAdmin middleware
 router.get("/admin", authMiddleware, isAdmin, getLaporanList);

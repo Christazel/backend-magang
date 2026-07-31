@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 import User from "../models/userModel.js";
 import Presensi from "../models/presensiModel.js";
 import Laporan from "../models/laporanModel.js";
@@ -12,8 +13,15 @@ const isProduction = process.env.NODE_ENV === "production";
  */
 export const getAllPeserta = async (req, res) => {
   try {
-    const peserta = await User.find({ role: "peserta" }).select("name email _id");
-    res.status(200).json(peserta);
+    const peserta = await User.find({ role: "peserta" }).select("name email status createdAt _id");
+    const data = peserta.map((p) => ({
+      _id: p._id,
+      name: p.name,
+      email: p.email,
+      status: p.status || "approved",
+      createdAt: p.createdAt,
+    }));
+    res.status(200).json(data);
   } catch (error) {
     console.error("[getAllPeserta] Error:", error);
     res.status(500).json({ msg: "Gagal mengambil data peserta", error: isProduction ? undefined : error.message });
@@ -25,13 +33,13 @@ export const getAllPeserta = async (req, res) => {
  * Menggunakan aggregate supaya performa bagus di data besar.
  * Response:
  * [
- *   { _id, name, email, hadir: <number>, tugas: <number> }
+ *   { _id, name, email, status, hadir: <number>, tugas: <number> }
  * ]
  */
 export const getAllPesertaWithStats = async (req, res) => {
   try {
     // 1) Ambil semua user peserta
-    const users = await User.find({ role: "peserta" }).select("_id name email");
+    const users = await User.find({ role: "peserta" }).select("_id name email status createdAt");
 
     // 2) Aggregate presensi -> hitung 'hadir' (record yang punya jamMasuk)
     const presensiAgg = await Presensi.aggregate([
@@ -53,8 +61,10 @@ export const getAllPesertaWithStats = async (req, res) => {
       _id: u._id,
       name: u.name,
       email: u.email,
+      status: u.status || "approved",
       hadir: hadirMap.get(String(u._id)) || 0,
       tugas: tugasMap.get(String(u._id)) || 0,
+      createdAt: u.createdAt,
     }));
 
     res.status(200).json(data);
@@ -101,3 +111,67 @@ export const deletePeserta = async (req, res) => {
     res.status(500).json({ msg: "Gagal menghapus peserta", error: isProduction ? undefined : error.message });
   }
 };
+
+// ─────────────────────────────────────────────────
+// [ADMIN] PUT /api/users/:id/reset-password — Reset password peserta
+// ─────────────────────────────────────────────────
+export const resetPasswordPeserta = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ msg: "User tidak ditemukan" });
+    }
+    if (user.role === "admin") {
+      return res.status(403).json({ msg: "Tidak dapat mereset password admin lain" });
+    }
+
+    const defaultPassword = process.env.DEFAULT_PASSWORD || "Magang123";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ msg: `Password berhasil direset menjadi: ${defaultPassword}` });
+  } catch (error) {
+    console.error("[resetPasswordPeserta] Error:", error);
+    res.status(500).json({ msg: "Gagal mereset password", error: isProduction ? undefined : error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────
+// [ADMIN] PUT /api/users/admin/peserta/:id/status — Ubah status persetujuan peserta
+// ─────────────────────────────────────────────────
+export const updateStatusPeserta = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { status } = req.body; // "approved" | "rejected" | "pending"
+
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ msg: "Status tidak valid. Harus 'approved', 'rejected', atau 'pending'." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ msg: "User tidak ditemukan" });
+    if (user.role === "admin") return res.status(403).json({ msg: "Tidak dapat mengubah status admin" });
+
+    user.status = status;
+    await user.save();
+
+    res.status(200).json({
+      msg: `Status akun peserta berhasil diubah menjadi '${status}'`,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    console.error("[updateStatusPeserta] Error:", error);
+    res.status(500).json({ msg: "Gagal mengubah status peserta", error: isProduction ? undefined : error.message });
+  }
+};
+
+

@@ -266,6 +266,7 @@ export const adminReviewLaporan = async (req, res) => {
     laporan.reviewed = status !== "pending";
     laporan.reviewedBy = req.user.id;
     laporan.reviewedAt = new Date();
+    laporan.dibacaPeserta = false; // Reset status baca agar peserta dapat notifikasi
 
     await laporan.save();
 
@@ -442,3 +443,48 @@ export const cleanupOrphanedFiles = async (req, res) => {
     return res.status(500).json({ msg: "Gagal membersihkan file GridFS", error: isProduction ? undefined : error.message });
   }
 };
+
+// ─────────────────────────────────────────────────
+// [PESERTA] GET /api/laporan/notifikasi — Ambil laporan yang perlu direvisi & belum dibaca
+// ─────────────────────────────────────────────────
+export const getMyNotifikasi = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Ambil laporan yang statusnya revisi DAN belum dibaca
+    const notifikasiList = await Laporan.find({
+      user: userId,
+      status: "revisi",
+      dibacaPeserta: false,
+    }).select("judul adminCatatan createdAt");
+
+    res.status(200).json(notifikasiList);
+  } catch (error) {
+    console.error("[getMyNotifikasi] Error:", error);
+    res.status(500).json({ msg: "Gagal mengambil notifikasi", error: isProduction ? undefined : error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────
+// [PESERTA] PUT /api/laporan/:id/tandai-dibaca — Tandai notifikasi revisi sudah dibaca
+// ─────────────────────────────────────────────────
+export const tandaiDibaca = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const laporanId = req.params.id;
+
+    const laporan = await Laporan.findOne({ _id: laporanId, user: userId });
+    if (!laporan) {
+      return res.status(404).json({ msg: "Laporan tidak ditemukan" });
+    }
+
+    laporan.dibacaPeserta = true;
+    await laporan.save();
+
+    res.status(200).json({ msg: "Notifikasi telah ditandai dibaca" });
+  } catch (error) {
+    console.error("[tandaiDibaca] Error:", error);
+    res.status(500).json({ msg: "Gagal menandai notifikasi", error: isProduction ? undefined : error.message });
+  }
+};
+

@@ -207,3 +207,53 @@ export const getAllPresensi = async (req, res) => {
     res.status(500).json({ msg: "Gagal ambil semua data", error: isProduction ? undefined : error.message });
   }
 };
+
+// ✅ Admin: Edit / Input Presensi Manual untuk Peserta
+export const adminUpsertPresensi = async (req, res) => {
+  try {
+    const { userId, tanggal, jamMasuk, jamKeluar, lokasiMasuk, lokasiKeluar } = req.body;
+
+    if (!userId || !tanggal) {
+      return res.status(400).json({ msg: "User ID dan Tanggal wajib diisi." });
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+      return res.status(400).json({ msg: "Format tanggal tidak valid. Gunakan YYYY-MM-DD." });
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ msg: "User peserta tidak ditemukan." });
+    }
+
+    let presensi = await Presensi.findOne({ user: userId, tanggal });
+    if (!presensi) {
+      presensi = new Presensi({ user: userId, tanggal });
+    }
+
+    if (jamMasuk !== undefined) presensi.jamMasuk = jamMasuk;
+    if (jamKeluar !== undefined) presensi.jamKeluar = jamKeluar;
+    if (lokasiMasuk !== undefined) presensi.lokasiMasuk = lokasiMasuk || "Manual (Admin)";
+    if (lokasiKeluar !== undefined) presensi.lokasiKeluar = lokasiKeluar || "Manual (Admin)";
+
+    await presensi.save();
+
+    res.status(200).json({ msg: "Presensi berhasil diperbarui oleh Admin", presensi });
+  } catch (error) {
+    console.error("[adminUpsertPresensi] Error:", error);
+    res.status(500).json({ msg: "Gagal memperbarui presensi manual", error: isProduction ? undefined : error.message });
+  }
+};
+
+// ✅ Admin: Hapus Record Presensi
+export const adminDeletePresensi = async (req, res) => {
+  try {
+    const presensi = await Presensi.findByIdAndDelete(req.params.id);
+    if (!presensi) return res.status(404).json({ msg: "Data presensi tidak ditemukan." });
+    res.status(200).json({ msg: "Data presensi berhasil dihapus." });
+  } catch (error) {
+    console.error("[adminDeletePresensi] Error:", error);
+    res.status(500).json({ msg: "Gagal menghapus presensi", error: isProduction ? undefined : error.message });
+  }
+};
+
