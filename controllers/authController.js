@@ -44,17 +44,17 @@ export const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ Role TIDAK boleh dari client — selalu default "peserta"
+    // ✅ Role TIDAK boleh dari client — selalu default "peserta", status default "pending"
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password: hashedPassword,
-      // role: default "peserta" dari schema, tidak dari req.body
+      status: "pending",
     });
 
     res.status(201).json({
-      message: "User registered",
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      message: "Registrasi berhasil. Akun Anda dalam proses verifikasi admin.",
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, status: user.status },
     });
   } catch (err) {
     console.error("[register] Error:", err);
@@ -81,6 +81,14 @@ export const login = async (req, res) => {
       return res.status(400).json({ error: "Email atau password salah." });
     }
 
+    // ✅ Cek status persetujuan akun (hanya untuk role peserta)
+    if (user.role === "peserta" && user.status === "pending") {
+      return res.status(403).json({ error: "Akun Anda belum disetujui oleh Admin. Silakan tunggu verifikasi admin." });
+    }
+    if (user.role === "peserta" && user.status === "rejected") {
+      return res.status(403).json({ error: "Pendaftaran akun Anda ditolak oleh Admin." });
+    }
+
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
@@ -95,6 +103,7 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        status: user.status || "approved",
       },
     });
   } catch (err) {

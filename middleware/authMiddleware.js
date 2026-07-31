@@ -19,6 +19,13 @@ export const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ msg: "User tidak ditemukan", code: "USER_NOT_FOUND" });
     }
 
+    if (user.role === "peserta" && user.status === "pending") {
+      return res.status(403).json({ msg: "Akun Anda belum disetujui oleh admin.", code: "ACCOUNT_PENDING" });
+    }
+    if (user.role === "peserta" && user.status === "rejected") {
+      return res.status(403).json({ msg: "Akun Anda ditolak oleh admin.", code: "ACCOUNT_REJECTED" });
+    }
+
     req.user = user;
     next();
   } catch (err) {
