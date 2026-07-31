@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 import User from "../models/userModel.js";
 import Presensi from "../models/presensiModel.js";
 import Laporan from "../models/laporanModel.js";
@@ -114,8 +115,6 @@ export const deletePeserta = async (req, res) => {
 // ─────────────────────────────────────────────────
 // [ADMIN] PUT /api/users/:id/reset-password — Reset password peserta
 // ─────────────────────────────────────────────────
-import bcrypt from "bcryptjs";
-
 export const resetPasswordPeserta = async (req, res) => {
   try {
     const userId = req.params.id;
